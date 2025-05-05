@@ -11,64 +11,70 @@ const Home = () => {
     const [pokedata, setPokedata] = useState([]);
     const [search, setSearch] = useState([]);
     const [apply, setApply] = useState('');
-    const [responce, setResponce] = useState({});
     const [next, setNext] = useState('');
     const [prev, setPrev] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [activeButton, setActiveButton] = useState(null); // 'next' or 'prev'
+    const [error, setError] = useState(null);
 
     const fetchData = async (url) => {
         try {
+            setLoading(true);
+            setError(null);
             const res = await httpComman.get(url);
             const results = res.data.results;
             const pokemonData = await Promise.all(results.map(item => axios.get(item.url)));
             const data = pokemonData.map(response => response.data);
-            setResponce(res);
 
             setPokedata(data);
             setNext(res.data.next);
             setPrev(res.data.previous);
-        } catch (error) {
-            console.error('Error', error);
+        } catch (err) {
+            console.error('Fetch error:', err);
+            setError('Failed to fetch Pokémon data. Please try again.');
+        } finally {
+            setLoading(false);
+            setActiveButton(null);
         }
     };
 
     const handleNext = () => {
         if (next) {
+            setActiveButton('next');
             fetchData(next);
         }
     };
 
     const handlePrevious = () => {
         if (prev) {
+            setActiveButton('prev');
             fetchData(prev);
         }
     };
 
+    // Initial data load
     useEffect(() => {
         fetchData('/pokemon/');
     }, []);
 
-
-
-
+    // Debounced search
     useEffect(() => {
         const debounce = setTimeout(() => {
-            const filterData = pokedata.filter(item => (
-                item.name.toLowerCase().includes(apply.toLowerCase()) || item.id.toString() === apply
-            ));
+            const filterData = pokedata.filter(item =>
+                item.name.toLowerCase().includes(apply.toLowerCase()) ||
+                item.id.toString() === apply
+            );
             setSearch(filterData);
         }, 2000);
 
         return () => clearTimeout(debounce);
     }, [apply, pokedata]);
 
-
-
-    if (responce.status !== 200) {
+    // Show full-screen loader on first load
+    if (loading && pokedata.length === 0) {
         return (
-            <div className="loading">
-                <CircularProgress
-                    size={60}
-                />
+            <div className="loading d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+                <CircularProgress size={60} />
             </div>
         );
     }
@@ -77,18 +83,55 @@ const Home = () => {
         <>
             <Header />
             <Navbar input={setApply} />
+
+            {/* Error display */}
+            {error && (
+                <div className="alert alert-danger text-center">
+                    {error}
+                </div>
+            )}
+
             <Card data={apply ? search : pokedata} />
-            <div className="d-grid gap-2 d-md-flex justify-content-md-center">
-                {prev && <button className="btn btn-primary me-md-2" onClick={handlePrevious} type="button">
-                    Previous
-                </button>}
-                <button className="btn btn-primary" onClick={handleNext} type="button">
-                    Next Page
-                </button>
+
+            <div className="d-grid gap-2 d-md-flex justify-content-md-center my-3">
+                {prev && (
+                    <button
+                        className="btn btn-primary me-md-2 d-flex align-items-center gap-2"
+                        onClick={handlePrevious}
+                        type="button"
+                        disabled={activeButton === 'prev'}
+                    >
+                        {activeButton === 'prev' ? (
+                            <>
+                                <CircularProgress size={20} color="inherit" /> Next Page
+                            </>
+                        ) : (
+                            'Previous'
+                        )}
+                    </button>
+                )}
+                {next && (
+                    <button
+                        className="btn btn-primary d-flex align-items-center gap-2"
+                        onClick={handleNext}
+                        type="button"
+                        disabled={activeButton === 'next'}
+                    >
+                        {activeButton === 'next' ? (
+                            <>
+                                <CircularProgress size={20} color="inherit" /> Next Page
+                            </>
+                        ) : (
+                            'Next Page'
+                        )}
+                    </button>
+                )}
             </div>
+
+
             <Footer />
         </>
     );
-}
+};
 
 export default Home;
